@@ -3,4 +3,7 @@ Makefile.PL
 MANIFEST
 README
 t/APR-Emulate-PSGI.t
+t/00_compile.t
+t/10_psgi.t
+t/20_cgi_mode.t
 lib/APR/Emulate/PSGI.pm
