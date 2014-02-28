@@ -169,7 +169,7 @@ sub _send_http_headers {
         my $url_scheme = uc($self->{'psgi_env'}{'psgi.url_scheme'} || 'http');
         print $url_scheme . '/1.1 ' . $status . "\n";
     }
-    print 'Content-type: ' . ($self->{'content_type'} || 'text/html') . "\n";
+    print 'Content-Type: ' . ($self->{'content_type'} || 'text/html') . "\n";
     $self->headers_out()->do(
         sub {
             my ($key, $value) = @_;

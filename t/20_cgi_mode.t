@@ -111,7 +111,7 @@ is(
 
 is(
     $headers_fh->getline(),
-    "Content-type: text/html\n",
+    "Content-Type: text/html\n",
     'Received expected content type.',
 );
 
