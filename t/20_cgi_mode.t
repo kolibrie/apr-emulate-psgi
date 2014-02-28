@@ -84,7 +84,7 @@ is(
     );
 }
 
-# Verify that data comes out as expected (reponse).
+# Verify that data comes out as expected (response).
 
 is(
     $r->headers_out()->add('X-Foo' => 'Bar'),

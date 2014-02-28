@@ -183,6 +183,28 @@ sub _send_http_headers {
 
 sub rflush {}
 
+sub psgi_status {
+    my ($self) = @_;
+    my $status = $self->status_line() || $self->status() || '200';
+    $status =~ s/\D//g;
+    return $status;
+}
+
+sub psgi_headers {
+	my ($self) = @_;
+	my @headers = (
+		'Content-Type',
+		($self->{'content_type'} || 'text/html'),
+	);
+	$self->headers_out()->do(
+		sub {
+			my ($key, $value) = @_;
+			push @headers, $key, $value;
+		}
+	);
+	return \@headers;
+};
+
 # See APR::Table in mod_perl 2 distribution.
 package APR::MyTable;
 

@@ -5,7 +5,7 @@ use Test::More;
 use APR::Emulate::PSGI;
 use IO::File;
 
-plan('tests' => 16);
+plan('tests' => 15);
 
 # Set up filehandles needed in the PSGI environment.
 my $error_string;
@@ -85,10 +85,7 @@ is(
     'POST content is correct.',
 );
 
-# Verify that data comes out as expected (reponse).
-
-# Force headers to be added to the response.
-$r->{'cgi_mode'} = 1;
+# Set headers for the response.
 
 is(
     $r->headers_out()->add('X-Foo' => 'Bar'),
@@ -96,39 +93,31 @@ is(
     'Header added.',
 );
 
-my $headers_fh  = IO::File->new_tmpfile();
-{
-    local *STDOUT = $headers_fh;
-    is(
-        $r->content_type('text/html'),
-        'text/html',
-        'Content-type is set.',
-    );
-}
-
-$headers_fh->seek(0, 0);  # Reset filehandle back to the beginning.
 is(
-    $headers_fh->getline(),
-    "HTTP/1.1 200 OK\n",
-    'Received expected status line.',
+    $r->content_type('text/html'),
+    'text/html',
+    'Content-type is set.',
 );
 
+# Verify that data comes out as expected (response).
+
 is(
-    $headers_fh->getline(),
-    "Content-type: text/html\n",
+    $r->psgi_status(),
+    '200',
+    'Received expected status.',
+);
+
+my $headers = +{ @{$r->psgi_headers()} };
+is(
+    $headers->{'Content-Type'},
+    'text/html',
     'Received expected content type.',
 );
 
 is(
-    $headers_fh->getline(),
-    "X-Foo: Bar\n",
+    $headers->{'X-Foo'},
+    'Bar',
     'Received expected custom header.',
-);
-
-is(
-    $headers_fh->getline(),
-    "\n",
-    'Received end-of-headers indicator.',
 );
 
 my $body_fh = IO::File->new_tmpfile();
