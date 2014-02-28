@@ -39,6 +39,22 @@ our $VERSION = '0.01';
 
 # TODO Replace //= with something 5.6.0 appropriate.
 
+=head1 METHODS
+
+=over 4
+
+=item new
+
+Creates an object that emulates the mod_perl2 APR object.
+
+    my $r = APR::Emulate::PSGI->new($psgi_env);
+
+HTTP environment information is read from the PSGI environment that is
+passed in as a parameter.  If no PSGI environment is supplied,
+environment information is read from the global %ENV.
+
+=cut
+
 sub new {
     my ( $class, $env ) = @_;
     my $self = bless {
@@ -48,48 +64,76 @@ sub new {
     return $self;
 }
 
-sub no_cache {
-    return 1;
+=item psgi_status
+
+Returns the numeric HTTP response that should be used when building
+a PSGI response.
+
+    my $status = $r->psgi_status();
+
+The value is determined by looking at the current value of L</status_line>,
+or if that is not set, the current value of L</status>, or if that is not
+set, defaults to 200.
+
+=cut
+
+sub psgi_status {
+    my ($self) = @_;
+    my $status = $self->status_line() || $self->status() || '200';
+    $status =~ s/\D//g;
+    return $status;
 }
 
-sub headers_out {
-    my ($self) = @_;
-    return $self->{'headers_out'} //= APR::MyTable::make();
-}
+=item psgi_headers
 
-sub err_headers_out {
-    my ($self) = @_;
-    return $self->{'err_headers_out'} //= APR::MyTable::make();
-}
+Returns an arrayref of headers which can be used when building a PSGI
+response.
 
-sub pool {
-    my ($self) = @_;
-    return $self->{'pool'} //= APR::MyPool->new();
-}
+A Content-Length header is not included, and must be added in accordance
+with the L<PSGI> specification, while building the PSGI response.
 
-sub uri {
+    my $headers_arrayref = $r->psgi_headers();
+
+=cut
+
+sub psgi_headers {
     my ($self) = @_;
-    if ($self->{'cgi_mode'}) {
-        return $ENV{'PATH_INFO'};
+    my @headers = ();
+
+    my $status = $self->psgi_status();
+    if ($status eq '204' || $status eq '304' || $status =~ /^1/) {
+        # Must not return Content-Type header, per PSGI spec.
     }
-    return $self->{'psgi_env'}{'PATH_INFO'};
-}
-
-sub parsed_uri {
-    my ($self) = @_;
-    if ($self->{'cgi_mode'}) {
-        return $self->{'uri'} //= URI->new($ENV{'REQUEST_URI'});
+    else {
+        # Add Content-Type header.
+        push @headers, (
+            'Content-Type',
+            ($self->{'content_type'} || 'text/html'),
+        );
     }
-    return $self->{'uri'} //= URI->new($self->{'psgi_env'}{'REQUEST_URI'});
-}
 
-sub args {
-    my ($self) = @_;
-    if ($self->{'cgi_mode'}) {
-        return $ENV{'QUERY_STRING'};
-    }
-    return $self->{'psgi_env'}{'QUERY_STRING'};
-}
+    # Add other headers that have been set.
+    $self->headers_out()->do(
+        sub {
+            my ($key, $value) = @_;
+            push @headers, $key, $value;
+        }
+    );
+
+    return \@headers;
+};
+
+=back
+
+=head2 Request Methods
+
+=over 4
+
+=item headers_in
+
+Emulates L<Apache2::RequestRec/headers_in>.
+
+=cut
 
 sub headers_in {
     my ($self) = @_;
@@ -112,6 +156,12 @@ sub headers_in {
     return $self->{'headers_in'} = HTTP::Headers->new(%headers);
 }
 
+=item method
+
+Emulates L<Apache2::RequestRec/method>.
+
+=cut
+
 sub method {
     my ($self) = @_;
     if ($self->{'cgi_mode'}) {
@@ -119,6 +169,54 @@ sub method {
     }
     return $self->{'psgi_env'}{'REQUEST_METHOD'};
 }
+
+=item uri
+
+Emulates L<Apache2::RequestRec/uri>.
+
+=cut
+
+sub uri {
+    my ($self) = @_;
+    if ($self->{'cgi_mode'}) {
+        return $ENV{'PATH_INFO'};
+    }
+    return $self->{'psgi_env'}{'PATH_INFO'};
+}
+
+=item parsed_uri
+
+Emulates L<Apache2::URI/parsed_uri>.
+
+=cut
+
+sub parsed_uri {
+    my ($self) = @_;
+    if ($self->{'cgi_mode'}) {
+        return $self->{'uri'} //= URI->new($ENV{'REQUEST_URI'});
+    }
+    return $self->{'uri'} //= URI->new($self->{'psgi_env'}{'REQUEST_URI'});
+}
+
+=item args
+
+Emulates L<Apache2::RequestRec/args>.
+
+=cut
+
+sub args {
+    my ($self) = @_;
+    if ($self->{'cgi_mode'}) {
+        return $ENV{'QUERY_STRING'};
+    }
+    return $self->{'psgi_env'}{'QUERY_STRING'};
+}
+
+=item read
+
+Emulates L<Apache2::RequestIO/read>.
+
+=cut
 
 sub read {
     my ($self, $buffer, $length, $offset) = @_;
@@ -130,13 +228,74 @@ sub read {
     return $self->{'psgi_env'}{'psgi.input'}->read($_[1], $length, $offset);
 }
 
-sub print {
-    my ($self, @content) = @_;
-    my $success = CORE::print @content;
-    return $success
-        ? length(join('', @content))
-        : 0;
+=item pool
+
+Emulates L<Apache2::RequestRec/pool>.
+
+=cut
+
+sub pool {
+    my ($self) = @_;
+    return $self->{'pool'} //= APR::MyPool->new();
 }
+
+=back
+
+=head2 Response Methods
+
+=over 4
+
+=item headers_out
+
+Emulates L<Apache2::RequestRec/headers_out>.
+
+=cut
+
+sub headers_out {
+    my ($self) = @_;
+    return $self->{'headers_out'} //= APR::MyTable::make();
+}
+
+=item err_headers_out
+
+Emulates L<Apache2::RequestRec/err_headers_out>.
+
+=cut
+
+sub err_headers_out {
+    my ($self) = @_;
+    return $self->{'err_headers_out'} //= APR::MyTable::make();
+}
+
+=item no_cache
+
+Emulates L<Apache2::RequestUtil/no_cache>.
+
+=cut
+
+sub no_cache {
+    my ($self, $value) = @_;
+    my $previous_value = $self->{'no_cache'} || 0;
+    $self->{'no_cache'} = $value ? 1 : 0;
+    return $previous_value if ($previous_value eq $self->{'no_cache'});
+
+    # Set headers.
+    if ($self->{'no_cache'}) {
+        $self->headers_out()->add('Pragma' => 'no-cache');
+        $self->headers_out()->add('Cache-control' => 'no-cache');
+    }
+    # Unset headers.
+    else {
+        $self->headers_out()->unset('Pragma', 'Cache-control');
+    }
+    return $previous_value;
+}
+
+=item status
+
+Emulates L<Apache2::RequestRec/status>.
+
+=cut
 
 sub status {
     my ($self, @value) = @_;
@@ -144,11 +303,26 @@ sub status {
     return $self->{'status'};
 }
 
+=item status_line
+
+Emulates L<Apache2::RequestRec/status_line>.
+
+=cut
+
 sub status_line {
     my ($self, @value) = @_;
     $self->{'status_line'} = $value[0] if scalar(@value);
     return $self->{'status_line'};
 }
+
+=item content_type
+
+Emulates L<Apache2::RequestRec/content_type>.
+
+If no PSGI enviroment is provided to L</new>, calling this
+method with a parameter will cause HTTP headers to be sent.
+
+=cut
 
 sub content_type {
     my ($self, @value) = @_;
@@ -181,29 +355,31 @@ sub _send_http_headers {
     return 1;
 }
 
-sub rflush {}
+=item print
 
-sub psgi_status {
-    my ($self) = @_;
-    my $status = $self->status_line() || $self->status() || '200';
-    $status =~ s/\D//g;
-    return $status;
+Emulates L<Apache2::RequestIO/print>.
+
+=cut
+
+sub print {
+    my ($self, @content) = @_;
+    my $success = CORE::print @content;
+    return $success
+        ? length(join('', @content))
+        : 0;
 }
 
-sub psgi_headers {
-	my ($self) = @_;
-	my @headers = (
-		'Content-Type',
-		($self->{'content_type'} || 'text/html'),
-	);
-	$self->headers_out()->do(
-		sub {
-			my ($key, $value) = @_;
-			push @headers, $key, $value;
-		}
-	);
-	return \@headers;
-};
+=item rflush
+
+Emulates L<Apache2::RequestIO/rflush>.
+
+=cut
+
+sub rflush {}
+
+=back
+
+=cut
 
 # See APR::Table in mod_perl 2 distribution.
 package APR::MyTable;

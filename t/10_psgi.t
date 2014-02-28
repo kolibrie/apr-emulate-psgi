@@ -5,7 +5,7 @@ use Test::More;
 use APR::Emulate::PSGI;
 use IO::File;
 
-plan('tests' => 15);
+plan('tests' => 21);
 
 # Set up filehandles needed in the PSGI environment.
 my $error_string;
@@ -118,6 +118,44 @@ is(
     $headers->{'X-Foo'},
     'Bar',
     'Received expected custom header.',
+);
+
+is(
+	$r->no_cache(1),
+	0,
+	'No cache is set.',
+);
+
+$headers = +{ @{$r->psgi_headers()} };
+is(
+	$headers->{'Pragma'},
+	'no-cache',
+	'Received Pragma header for cache.',
+);
+
+is(
+	$headers->{'Cache-control'},
+	'no-cache',
+	'Received Cache-control header for cache.',
+);
+
+is(
+	$r->no_cache(0),
+	1,
+	'No cache is unset.',
+);
+
+$headers = +{ @{$r->psgi_headers()} };
+is(
+	exists($headers->{'Pragma'}),
+	'',
+	'Received no Pragma header.',
+);
+
+is(
+	exists($headers->{'Cache-control'}),
+	'',
+	'Received no Cache-control header.',
 );
 
 my $body_fh = IO::File->new_tmpfile();
