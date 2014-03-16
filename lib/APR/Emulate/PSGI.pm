@@ -35,7 +35,7 @@ use HTTP::Headers;
 # APR::MyPool defined below this package.
 # APR::MyTable defined below this package.
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 # TODO Replace //= with something 5.6.0 appropriate.
 

@@ -1,5 +1,8 @@
 Revision history for Perl extension APR::Emulate::PSGI.
 
+0.03  Sat Mar 15 21:57:10 2014
+	- Added dependency requirements to Makefile.
+
 0.02  Fri Feb 28 22:24:11 2014
 	- Added some unit tests, documentation, and fleshed out the API a bit.
 
